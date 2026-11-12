@@ -132,7 +132,11 @@ func Close() error {
 	if db == nil {
 		return nil
 	}
-	if err := db.Close(); err != nil {
+	dbHandle := db
+	// Reset the global handle first so a failed or re-entrant close cannot
+	// leave a stale handle pointing at a renamed or removed database file.
+	db = nil
+	if err := dbHandle.Close(); err != nil {
 		return oops.Wrapf(err, "failed to close DB")
 	}
 	return nil
@@ -284,7 +288,14 @@ func (dbc Config) forEach(bktNames []string) (map[string]Value, error) {
 
 func (dbc Config) deleteBucket(bucketName string) error {
 	return db.Update(func(tx *bolt.Tx) error {
-		if err := tx.DeleteBucket([]byte(bucketName)); err != nil {
+		err := tx.DeleteBucket([]byte(bucketName))
+		// Incremental builds may have no data for a bucket, in which case
+		// there is nothing to clean up. Deleting a missing bucket must not
+		// fail, otherwise builds that only update some sources would fail.
+		if errors.Is(err, bolt.ErrBucketNotFound) {
+			return nil
+		}
+		if err != nil {
 			return oops.With("bucket_name", bucketName).Wrapf(err, "failed to delete bucket")
 		}
 		return nil

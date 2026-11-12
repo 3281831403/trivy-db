@@ -179,7 +179,8 @@ func TestTrivyDB_Build(t *testing.T) {
 				"testdata/fixtures/happy/vulnid.yaml",
 				"testdata/fixtures/happy/vulnerability-detail.yaml",
 			},
-			wantErr: "failed to delete advisory detail bucket",
+			// Missing temporary buckets are treated as nothing to clean up,
+			// so incremental builds finish successfully.
 		},
 	}
 
